@@ -1,6 +1,9 @@
 @Identity.Api_HostAddress = http://localhost:5235
 
-GET {{Identity.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Request an access token using the password grant (alice / P@ssw0rd!)
+POST {{Identity.Api_HostAddress}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=password&client_id=bookstore-app&username=alice&password=P@ssw0rd!&scope=profile%20email%20roles
 
 ###
