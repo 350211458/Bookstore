@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package catalog;
+
+option csharp_namespace = "Catalog";
+
+// Catalog service contract (spec 03). DeductStock lets the Order service atomically
+// deduct book stock during checkout. The contract lives in Catalog.Api; consumption by
+// Order.Api is deferred to a later spec.
+service CatalogService {
+  rpc DeductStock(DeductStockRequest) returns (DeductStockResponse);
+}
+
+message DeductStockRequest {
+  int32 book_id = 1;
+  int32 quantity = 2;
+}
+
+message DeductStockResponse {
+  bool success = 1;
+  int32 remaining_stock = 2;
+}
