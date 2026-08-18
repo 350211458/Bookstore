@@ -125,5 +125,17 @@ services:
       timeout: 3s
       retries: 10
 
+  frontend:
+    build:
+      context: src/Web/frontend
+      args:
+        VITE_API_GATEWAY_URL: ${VITE_API_GATEWAY_URL:-http://localhost:8080}
+    image: ${IMAGE_REGISTRY:-local}/bookstore-frontend:${IMAGE_TAG:-latest}
+    ports:
+      - "3000:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
 volumes:
   postgres_data:

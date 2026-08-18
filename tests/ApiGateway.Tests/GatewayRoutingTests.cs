@@ -120,4 +120,39 @@ public sealed class GatewayRoutingTests(ApiGatewayFactory factory) : IClassFixtu
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Fact]
+    public async Task PreflightOptions_IsAnsweredByCorsAndNotForwardedUpstream()
+    {
+        factory.Catalog.Clear();
+        var client = factory.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Options, "/catalog/api/books");
+        request.Headers.Add("Origin", "http://localhost:3000");
+        request.Headers.Add("Access-Control-Request-Method", "GET");
+        request.Headers.Add("Access-Control-Request-Headers", "authorization,content-type");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal("http://localhost:3000",
+            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.Empty(factory.Catalog.Requests);
+    }
+
+    [Fact]
+    public async Task CrossOriginGet_IncludesAllowOriginHeader()
+    {
+        factory.Catalog.Clear();
+        var client = factory.CreateClient();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "/catalog/api/books");
+        request.Headers.Add("Origin", "http://localhost:3000");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("http://localhost:3000",
+            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+    }
 }

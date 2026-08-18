@@ -97,13 +97,13 @@ Field names are camelCase JSON (ASP.NET Core defaults). These shapes are authori
 | `DELETE /order/api/cart/items/{bookId}` | `?sessionId={id}` | `204` | `404` |
 | `DELETE /order/api/cart` | `?sessionId={id}` | `204` | — |
 
-**Order** (order): `OrderStatus` string values `Placed, Paid, Processing, Shipped, Completed, Cancelled`. `OrderItem` = `{ id, orderId, bookId, title, unitPrice, quantity, lineTotal }`. `OrderResponse` (detail/checkout) = `{ id, customerName, totalAmount, status, createdAt, updatedAt, items: OrderItem[] }`. The list endpoint returns bare `Order` entities — `{ id, customerName, totalAmount, status, createdAt, updatedAt }` — with **no nested items**.
+**Order** (order): `OrderStatus` is serialized as its **integer enum value** — `Placed=0, Paid=1, Processing=2, Shipped=3, Completed=4, Cancelled=5` (Order.Api does not register `JsonStringEnumConverter`; verified against the running stack). `OrderItem` = `{ id, orderId, bookId, title, unitPrice, quantity, lineTotal }`. `OrderResponse` (detail/checkout) = `{ id, customerName, totalAmount, status, createdAt, updatedAt, items: OrderItem[] }`. The list endpoint returns bare `Order` entities — `{ id, customerName, totalAmount, status, createdAt, updatedAt }` — with **no nested items**.
 | Method & Path | Request body / query | Success | Error |
 |---|---|---|---|
 | `POST /order/api/orders/checkout` | `{ sessionId, customerName }` | `201 OrderResponse` | `400` (empty cart), `409` (stock deduction failed; no order created) |
 | `GET /order/api/orders` | `?page=1&pageSize=20` | `200 { items: Order[], totalCount, page, pageSize }` | — |
 | `GET /order/api/orders/{id}` | — | `200 OrderResponse` | `404` |
-| `POST /order/api/orders/{id}/status` | `{ status }` | `200 Order` | `400` (invalid transition), `404` |
+| `POST /order/api/orders/{id}/status` | `{ status }` (integer enum value, e.g. `1` = Paid) | `200 Order` | `400` (invalid transition), `404` |
 | `POST /order/api/orders/{id}/cancel` | — | `200 Order` | `400`, `404` |
 
 **Cart snapshot note**: adding to cart requires the client to supply `title` and `unitPrice` (Spec 04 snapshots them at add-time). Fetch `GET /catalog/api/books/{id}` before adding so the cart shows the current title/price.
