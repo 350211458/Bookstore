@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.0.31903.59
+# Visual Studio Version 18
+VisualStudioVersion = 18.9.12105.275 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
@@ -20,6 +20,16 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Catalog.Api", "src\Services\Catalog.Api\Catalog.Api.csproj", "{15BCCD40-95F8-4E27-8150-92AC330E9F47}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Order.Api", "src\Services\Order.Api\Order.Api.csproj", "{C3A57B8F-E3F6-41D6-B792-8DB475810CFE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "解决方案项", "解决方案项", "{E55EABB5-2586-414A-8836-983ACF672EA8}"
+	ProjectSection(SolutionItems) = preProject
+		.dockerignore = .dockerignore
+		.env.example = .env.example
+		.gitignore = .gitignore
+		.mcp.json = .mcp.json
+		CLAUDE.md = CLAUDE.md
+		docker-compose.yaml = docker-compose.yaml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -116,5 +126,8 @@ Global
 		{D1375FC1-6350-4CD3-9261-4A2D70892CA9} = {984BB9B3-3FA3-BE33-9484-CAC21695A33C}
 		{15BCCD40-95F8-4E27-8150-92AC330E9F47} = {984BB9B3-3FA3-BE33-9484-CAC21695A33C}
 		{C3A57B8F-E3F6-41D6-B792-8DB475810CFE} = {984BB9B3-3FA3-BE33-9484-CAC21695A33C}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6715B3C8-5399-419E-A884-24AA73F20ACE}
 	EndGlobalSection
 EndGlobal

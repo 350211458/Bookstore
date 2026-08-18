@@ -1,0 +1,19 @@
+# Spec 06 — build-context trim for the Dockerfiles.
+# The Dockerfiles build from the repo root (context: .); this file keeps the
+# context small (no .git / bin / obj / tests) so the daemon transfer is fast and
+# deterministic. Deploy artifacts only — nothing here affects runtime config.
+
+**/bin
+**/obj
+.git
+.vs
+.claude
+tests
+docs
+evals
+.vs
+**/*.user
+**/*.suo
+.env
+.env.*
+*.log

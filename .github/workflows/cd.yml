@@ -1,0 +1,91 @@
+# Spec 06 — CD: build/push the four images to GHCR, then deploy on the production
+# host with `docker compose pull` + `up -d` over SSH (appleboy/ssh-action).
+#
+# Production host prerequisites:
+#   - the repo cloned at $HOME/bookstore (or set the DEPLOY_DIR secret), with
+#     docker-compose.yaml present and `.env.production` created from .env.example
+#     (IMAGE_REGISTRY=ghcr.io/<owner>/<repo>, IMAGE_TAG=latest, POSTGRES_PASSWORD=...).
+# Required secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, GHCR_TOKEN.
+name: cd
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push identity-api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Services/Identity.Api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/bookstore-identity-api:latest
+            ghcr.io/${{ github.repository }}/bookstore-identity-api:${{ github.sha }}
+
+      - name: Build and push catalog-api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Services/Catalog.Api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/bookstore-catalog-api:latest
+            ghcr.io/${{ github.repository }}/bookstore-catalog-api:${{ github.sha }}
+
+      - name: Build and push order-api
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Services/Order.Api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/bookstore-order-api:latest
+            ghcr.io/${{ github.repository }}/bookstore-order-api:${{ github.sha }}
+
+      - name: Build and push api-gateway
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/Gateways/ApiGateway/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/bookstore-api-gateway:latest
+            ghcr.io/${{ github.repository }}/bookstore-api-gateway:${{ github.sha }}
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd "${DEPLOY_DIR:-$HOME/bookstore}"
+            git pull
+            docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GHCR_TOKEN }}"
+            docker compose --env-file .env.production pull
+            docker compose --env-file .env.production up -d

@@ -1,0 +1,129 @@
+# Spec 06 — Docker Compose: full Bookstore stack (PostgreSQL + 3 services + YARP gateway).
+# Service names are the Service Discovery names (identity-api, catalog-api, order-api,
+# api-gateway) so Docker's embedded DNS resolves the gateway's cluster destinations
+# (http://identity-api, ...) exactly as AppHost does — this name match is what makes
+# the containerized stack behave like the Aspire run.
+#
+# Local use:        cp .env.example .env && docker compose up -d
+# Production (CD):  docker compose --env-file .env.production pull && up -d
+#
+# Observability (Spec 06 Req 5): every service enables the OTLP exporter whenever the
+# OTEL_EXPORTER_OTLP_ENDPOINT env var is set (ServiceDefaults), so an OpenTelemetry
+# collector endpoint can be injected here with no code changes.
+#
+# Backups (Spec 06 Req 5): postgres_data is the only durable state. Backup with
+#   docker compose exec -T postgres pg_dump -U postgres bookstore_catalog  > catalog.sql
+# (and bookstore_identity / bookstore_order) to a backup location.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: bookstore
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  identity-api:
+    build:
+      context: .
+      dockerfile: src/Services/Identity.Api/Dockerfile
+    image: ${IMAGE_REGISTRY:-local}/bookstore-identity-api:${IMAGE_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__IdentityDb: Host=postgres;Port=5432;Database=bookstore_identity;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  catalog-api:
+    build:
+      context: .
+      dockerfile: src/Services/Catalog.Api/Dockerfile
+    image: ${IMAGE_REGISTRY:-local}/bookstore-catalog-api:${IMAGE_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # gRPC DeductStock needs HTTP/2 (h2c). On .NET 10 Kestrel, Http1AndHttp2 over
+      # cleartext serves HTTP/1.1 only (HTTP/2 requires TLS ALPN), so give catalog a
+      # dedicated Http2-only gRPC endpoint on 5001 and keep REST/health on 8080 as Http1.
+      # Config-only via Kestrel:Endpoints env override — no code change.
+      ASPNETCORE_HTTP_PORTS: ""
+      Kestrel__Endpoints__Http__Url: http://+:8080
+      Kestrel__Endpoints__Http__Protocols: Http1
+      Kestrel__Endpoints__Grpc__Url: http://+:5001
+      Kestrel__Endpoints__Grpc__Protocols: Http2
+      ConnectionStrings__CatalogDb: Host=postgres;Port=5432;Database=bookstore_catalog;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  order-api:
+    build:
+      context: .
+      dockerfile: src/Services/Order.Api/Dockerfile
+    image: ${IMAGE_REGISTRY:-local}/bookstore-order-api:${IMAGE_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__OrderDb: Host=postgres;Port=5432;Database=bookstore_order;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      # Spec 04: Order.Api's IStockDeductionService requires this config key; the gRPC
+      # channel targets catalog-api's dedicated Http2 (h2c) endpoint on port 5001.
+      Catalog__GrpcEndpoint: http://catalog-api:5001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      catalog-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: src/Gateways/ApiGateway/Dockerfile
+    image: ${IMAGE_REGISTRY:-local}/bookstore-api-gateway:${IMAGE_TAG:-latest}
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # Cluster destinations: DNS resolves the service names, but the port must be
+      # explicit because the services bind 8080 (ASPNETCORE_HTTP_PORTS), not the
+      # http:// default of 80. This mirrors how AppHost injects the real endpoint.
+      ReverseProxy__Clusters__identity__Destinations__identity-api__Address: http://identity-api:8080
+      ReverseProxy__Clusters__catalog__Destinations__catalog-api__Address: http://catalog-api:8080
+      ReverseProxy__Clusters__order__Destinations__order-api__Address: http://order-api:8080
+    depends_on:
+      identity-api:
+        condition: service_healthy
+      catalog-api:
+        condition: service_healthy
+      order-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:

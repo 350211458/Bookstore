@@ -1,0 +1,37 @@
+# Spec 06 — CI: build the solution and run each test suite explicitly.
+#
+# The four test projects are intentionally NOT part of DotNet10Bookstore.sln
+# (Scope Isolation precedent, specs 02-05), so a plain `dotnet test` on the solution
+# would cover nothing — each test csproj must be invoked on its own.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build solution
+        run: dotnet build DotNet10Bookstore.sln -c Release
+
+      - name: Test Identity.Api
+        run: dotnet test tests/Identity.Api.Tests/Identity.Api.Tests.csproj -c Release
+
+      - name: Test Catalog.Api
+        run: dotnet test tests/Catalog.Api.Tests/Catalog.Api.Tests.csproj -c Release
+
+      - name: Test Order.Api
+        run: dotnet test tests/Order.Api.Tests/Order.Api.Tests.csproj -c Release
+
+      - name: Test ApiGateway
+        run: dotnet test tests/ApiGateway.Tests/ApiGateway.Tests.csproj -c Release
