@@ -7,6 +7,8 @@
 #     (IMAGE_REGISTRY=ghcr.io/<owner>/<repo> ALL LOWERCASE — Docker rejects uppercase
 #     repository names; IMAGE_TAG=latest; POSTGRES_PASSWORD=...).
 # Required secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, GHCR_TOKEN.
+# If those secrets are not configured yet, the deploy job emits a visible warning and
+# skips the SSH step — build-push still runs and pushes the four images to GHCR.
 name: cd
 
 on:
@@ -80,17 +82,29 @@ jobs:
   deploy:
     needs: build-push
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
     steps:
+      - name: Deployment not configured
+        if: ${{ env.DEPLOY_HOST == '' || env.DEPLOY_USER == '' || env.DEPLOY_SSH_KEY == '' || env.GHCR_TOKEN == '' }}
+        run: |
+          echo "::warning::Deployment skipped — configure the DEPLOY_HOST / DEPLOY_USER / DEPLOY_SSH_KEY / GHCR_TOKEN secrets (and prepare a production host: Docker, repo clone, .env.production) to enable the deploy step."
+          echo "The four images are already pushed to GHCR."
+
       - name: Deploy over SSH
+        if: ${{ env.DEPLOY_HOST != '' && env.DEPLOY_USER != '' && env.DEPLOY_SSH_KEY != '' && env.GHCR_TOKEN != '' }}
         uses: appleboy/ssh-action@v1
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ env.DEPLOY_HOST }}
+          username: ${{ env.DEPLOY_USER }}
+          key: ${{ env.DEPLOY_SSH_KEY }}
           script: |
             set -e
             cd "${DEPLOY_DIR:-$HOME/bookstore}"
             git pull
-            docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GHCR_TOKEN }}"
+            docker login ghcr.io -u "${{ github.actor }}" -p "${{ env.GHCR_TOKEN }}"
             docker compose --env-file .env.production pull
             docker compose --env-file .env.production up -d
